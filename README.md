@@ -2,7 +2,7 @@
  
  Photo
 
-![](https://cloud.githubusercontent.com/assets/9403558/4783250/8031bea6-5d1e-11e4-90d2-cdc527286603.JPG)
+![](https://cloud.githubusercontent.com/assets/9403558/7792052/9eab79b4-02d5-11e5-9bfd-405346ad5582.jpg)
 
  Test By tinnakon kheowree  project Tinnakon_Rover
  
