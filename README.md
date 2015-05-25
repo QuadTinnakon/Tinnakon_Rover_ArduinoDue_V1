@@ -7,6 +7,10 @@
 YouTube
 https://www.youtube.com/watch?v=vN939YJaCbI
 
+หน้าเวป
+
+http://quad3d-tin.lnwshop.com/product/70/tinnakon_rover_arduinodue_v1
+
  Test By tinnakon kheowree  project Tinnakon_Rover
  
  tinnakon_za@hotmail.com
