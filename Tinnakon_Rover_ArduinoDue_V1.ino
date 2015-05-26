@@ -5,12 +5,12 @@
  http://quad3d-tin.lnwshop.com/
  https://www.facebook.com/tinnakonza
 
- 24/05/2558   write Tinnakon_Rover_V1  ,,Read GPS 7N , read 4 RC , Write 1 servo , write motor
-
+ 24/05/2558   write Tinnakon_Rover_V1     ,,Read GPS 7N , read 4 RC , Write 1 servo , write motor
+ 25/05/2558   Tinnakon_Rover_ArduinoDue_V2 ,read SPI MPU6500 , read  i2c HMC5883L
  
-support : Arduino 1.5.8   Arduino Due 32 bit  
+support : Arduino 1.6.3   Arduino Due 32 bit  
 • Atmel SAM3X8E ARM Cortex-M3 CPU 32-bit a 84 MHz clock, ARM core microcontroller
-• MPU9250 Gyro Accelerometer
+• MPU6500 Gyro Accelerometer
 • HMC5883L Magnetometer //I2C_BYPASS ,I2C 400kHz
 • GPS NEO-7N //
 
@@ -22,7 +22,7 @@ A8 = PPM 8 CH
 #include "SPI_sam.h"
 #include "Aconfigsam3x8e.h"
 #include "multi_3rx_sam3x8e.h"
-#include "mpu9250sam3x8e.h"
+#include "mpu6500sam3x8e.h"
 #include "ahrs_tinsam3x8e.h"
 #include "GPSNEO7N_apm.h"
 #include "Control_PPIDsam3x8e.h"
@@ -53,12 +53,9 @@ void setup() {
   Wire.begin();
   Wire.setClock(400000);
   delay(10);
-  Wire1.begin();
-  Wire1.setClock(400000);
-  delay(10);
-  //mpu6050_initialize();
-  delay(30); //GYROSCOPE START-UP TIME 30 ms
-  //MagHMC5883Int();
+  mpu6500_initialize();
+  //delay(30); //GYROSCOPE START-UP TIME 30 ms
+  MagHMC5883Int();
   Serial.print("HMC5883_initialize");Serial.print("\n");
   delay(10);
   SPI.begin();
@@ -67,9 +64,8 @@ void setup() {
   Serial.print("Read Sensor");Serial.println("\t");
      for(int i=0; i<100; i++) 
     {
-     //mpu6050_readGyroSum();
-     //mpu6050_readAccelSum();
-     //Mag5883Read();
+     MPU6500Read();
+     Mag5883Read();
      delay(10);
     }
     digitalWrite(Pin_LED_B, HIGH);
@@ -78,8 +74,8 @@ void setup() {
     //mpu6050_Get_accel();
     //mpu6050_Get_gyro();
     delay(10);
-    //sensor_Calibrate();//sensor.h
-    //ahrs_initialize();//ahrs.h
+    sensor_Calibrate();//sensor.h
+    ahrs_initialize();//ahrs.h
     RC_Calibrate();//"multi_rxPPM2560.h"
     setupFourthOrder();//ahrs
   delay(100);
@@ -95,6 +91,8 @@ void setup() {
        GPS_LON1 = GPS_coord[LON]/10000000.0;
        GPS_LAT_HOME = GPS_LAT1;
        GPS_LON_HOME = GPS_LON1;
+       waypoint1_LAT = GPS_LAT1;
+       waypoint1_LON = GPS_LON1;
        digitalWrite(Pin_LED_B, LOW);
        delay(20);
        digitalWrite(Pin_LED_B, HIGH);
@@ -118,8 +116,7 @@ void loop() {
     if(Dt_sensor >= 1000 && gyroSamples < 4)////Collect 2 samples = 1000 us 
     {  
         sensorPreviousTime = micros();
-        //mpu6050_readGyroSum();
-        //mpu6050_readAccelSum();
+        mpu6500_readSum();
     }
    Dt_roop = micros() - previousTime;// 200 Hz task loop (5 ms)  , 2500 us = 400 Hz
    if(Dt_roop <= 0){Dt_roop = 5001;}  
@@ -129,14 +126,14 @@ void loop() {
       G_Dt = Dt_roop*0.000001;
       frameCounter++;
 /////get sensor////////////////////////////////////////////////////////////
-      //mpu6050_Get_accel();
-      //mpu6050_Get_gyro();
+      mpu6500_Get_accel();
+      mpu6500_Get_gyro();
       //digitalWrite(12, HIGH);
       //digitalWrite(12, LOW);
-      //////////////////////////////////////////////////////////
+      /////////////////////////////////////////////////////////
+        /*
   if (frameCounter % TASK_100HZ == 0)// 100 Hz tak
  {
-   /*
         ///////////////////Filter FourthOrder ///////////////////////////////////////
     Accel[XAXIS] = AccX;
     Accel[YAXIS] = AccY;
@@ -147,8 +144,8 @@ void loop() {
     AccXf = filteredAccel[XAXIS];
     AccYf = filteredAccel[YAXIS];
     AccZf = filteredAccel[ZAXIS];
-    */
  }
+ */
 ////////////////Moving Average Filters///////////////////////////
       GyroXf = (GyroX + GyroX2)/2.0;
       GyroYf = (GyroY + GyroY2)/2.0;
@@ -200,7 +197,7 @@ void loop() {
  }
       if (frameCounter % TASK_20HZ == 0)// 20 Hz task (50 ms)
         {
-           //Mag5883Read();
+           Mag5883Read();
           //updateOF();//AP_OPTICALFLOW_ADNS3080
           //Get_pixy();	
           //update_positionA3080(GyroXfMO ,GyroYfMO ,1.0 ,0.0 ,z1_hat);//(float Gyroroll, float Gyropitch, float cos_yaw_x, float sin_yaw_y, float altitude)
@@ -246,8 +243,8 @@ void loop() {
             Serial.print(CH_AILf);Serial.print("\t");  
             //Serial.print(CH_ELEf);Serial.print("\t");
             //Serial.print(CH_RUDf);Serial.print("\t");  
-            Serial.print(AUX_1);Serial.print("\t"); 
-            Serial.print(AUX_2);Serial.print("\t"); 
+            //Serial.print(AUX_1);Serial.print("\t"); 
+            //Serial.print(AUX_2);Serial.print("\t"); 
             //Serial.print(AUX_3);Serial.print("\t"); 
             //Serial.print(AUX_4);Serial.print("\t"); 
             //Serial.print(failsafeCnt);Serial.print("\t");
@@ -276,16 +273,16 @@ void loop() {
             //Serial.print(error_LAT);Serial.print("\t");
             //Serial.print(error_LON);Serial.print("\t");
             //Serial.print(GPS_altitude);Serial.print("\t");
-            Serial.print(GPS_hdop);Serial.print("\t");
+            //Serial.print(GPS_hdop);Serial.print("\t");
             //Serial.print(GPS_speed);Serial.print("\t");//cm/s
             //Serial.print(GPS_ground_course);Serial.print("\t");//deg
             
-            Serial.print(_velocity_north);Serial.print("\t");
+            //Serial.print(_velocity_north);Serial.print("\t");
             //Serial.print(actual_speedX);Serial.print("\t");
             //Serial.print(actual_speedXf);Serial.print("\t");
             //Serial.print(vx_hat);Serial.print("\t");
-            Serial.print(_velocity_east);Serial.print("\t");
-            Serial.print(_vel_down);Serial.print("\t");
+            //Serial.print(_velocity_east);Serial.print("\t");
+            //Serial.print(_vel_down);Serial.print("\t");
             //Serial.print(actual_speedY);Serial.print("\t");
             //Serial.print(actual_speedYf);Serial.print("\t");
             //Serial.print(vy_hat);Serial.print("\t");
@@ -373,13 +370,13 @@ void loop() {
             //Serial.print(gyroRaw[YAXIS]);Serial.print("\t");
             //Serial.print(gyroRaw[ZAXIS]);Serial.print("\t");
             
-            //Serial.print(_accel9250X);Serial.print("\t"); 
-            //Serial.print(_accel9250Y);Serial.print("\t");
-            //Serial.print(_accel9250Z);Serial.print("\t");
+            //Serial.print(accelRaw[XAXIS]);Serial.print("\t"); 
+            //Serial.print(accelRaw[YAXIS]);Serial.print("\t");
+            //Serial.print(accelRaw[ZAXIS]);Serial.print("\t");
             
-            //Serial.print(ahrs_r);Serial.print("\t");
-            //Serial.print(ahrs_p);Serial.print("\t");  
-            //Serial.print(ahrs_y);Serial.print("\t");  
+            Serial.print(ahrs_r);Serial.print("\t");
+            Serial.print(ahrs_p);Serial.print("\t");  
+            Serial.print(ahrs_y);Serial.print("\t");  
             //Serial3.print(ahrs_y*RAD_TO_DEG);Serial3.print("\t"); 
             //Serial.print(cos_rollcos_pitch);Serial.print("\t"); 
              
@@ -406,7 +403,7 @@ void loop() {
             Serial.print(GPS_numSat);Serial.print("\t");
             //Serial.print(Mode);Serial.print("\t");
             //Serial.print(gyroSamples2);Serial.print("\t");
-            //Serial.print(1/G_Dt);Serial.print("\t");
+            Serial.print(1/G_Dt);Serial.print("\t");
             //Serial.print("Hz");
             //Serial.print(millis()/1000.0);//millis() micros()
             Serial.print("\n"); 
