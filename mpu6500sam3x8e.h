@@ -11,7 +11,7 @@ https://www.facebook.com/tinnakonza
 #define XAXIS 0
 #define YAXIS 1
 #define ZAXIS 2
-float gyroScaleFactor = radians(2000.0/32668.0);//32768.0 32730 , +-32756  32768.0
+float gyroScaleFactor = radians(2000.0/32768.0);//32768.0 32730 , +-32756  32768.0
 float accelScaleFactor = 9.80665;//9.80665/4100.62 9.81/8192.09 9.81 / 8205  
 uint8_t gyroSamples = 0;
 uint8_t gyroSamples2 = 0;
@@ -40,18 +40,10 @@ float c_magnetom_z;
 
 //sensor MPU6500 -------------------------------------
 #define NCS_PIN 50
-#define N_BYTES 14 // number of bytes in data packet
 const int nCS = NCS_PIN;
-int16_t accelRaw[3];
-int16_t gyroRaw[3];
+float accelRaw[3];
+float gyroRaw[3];
 int16_t Tempgyro;
-unsigned short temp = 0;
-unsigned short n_samples = 0;
-unsigned short fifo_count = 0;
-unsigned short max_fifo_count = 0;
-unsigned short max_fifo_count2 = 0;
-unsigned short fifo_err = 0;
-unsigned char bytes[ N_BYTES ];
 
 #define MPU6500_ADDRESS_AD0_LOW     0x68 // address pin low (GND), default for InvenSense evaluation board
 #define MPU6500_ADDRESS_AD0_HIGH    0x69 // address pin high (VCC)
@@ -453,6 +445,26 @@ static int16_t spi_transfer_16(void)
     byte_L = SPI.transfer(0);
     return (((int16_t)byte_H)<<8) | byte_L;
 }
+void MPU6500Read( void )
+{
+      digitalWrite( NCS_PIN, LOW );
+      SPI.transfer(MPU6500_RA_ACCEL_XOUT_H  | 0x80);//0x40 // SPI read,
+      accelRaw[XAXIS] = spi_transfer_16() * -1;
+      accelRaw[YAXIS] = spi_transfer_16();
+      accelRaw[ZAXIS] = spi_transfer_16();
+      Tempgyro = spi_transfer_16();
+      gyroRaw[XAXIS] = spi_transfer_16() * gyroScaleFactor;
+      gyroRaw[YAXIS] = spi_transfer_16() * -1 * gyroScaleFactor;
+      gyroRaw[ZAXIS] = spi_transfer_16() * -1 * gyroScaleFactor;
+      digitalWrite( NCS_PIN, HIGH );
+      AccXm = ((float)(accelRaw[XAXIS] - A_X_MIN) / (A_X_MAX - A_X_MIN))*2.0 - 1.0;
+      AccYm = ((float)(accelRaw[YAXIS] - A_Y_MIN) / (A_Y_MAX - A_Y_MIN))*2.0 - 1.0;
+      AccZm = ((float)(accelRaw[ZAXIS] - A_Z_MIN) / (A_Z_MAX - A_Z_MIN))*2.0 - 1.0;
+}
+void data_interrupt()
+{
+  MPU6500Read();
+}
 void mpu6500_initialize()
 {
   pinMode( NCS_PIN, OUTPUT );
@@ -466,15 +478,19 @@ void mpu6500_initialize()
   digitalWrite( NCS_PIN, HIGH );
   digitalWrite( NCS_PIN, LOW );
   digitalWrite( NCS_PIN, HIGH );
-  SPI_write_register( MPU6500_RA_PWR_MGMT_1, 0x80 );
+   // Chip reset
+  SPI_write_register( MPU6500_RA_PWR_MGMT_1, 0x80);
   delay(100); // page 42 - delay 100ms
     // reset gyro, accel, temp 
   SPI_write_register( MPU6500_RA_SIGNAL_PATH_RESET, 0x07);//0x05
-   delay(100); // page 42 - delay 100ms
+  delay(100); // page 42 - delay 100ms
+  // Wake up device and select GyroZ clock (better performance)
+  SPI_write_register(MPU6500_RA_PWR_MGMT_1, MPU6500_CLOCK_PLL_ZGYRO);//0x03
+  delay(1);
   // set SPI mode by setting I2C_IF_DIS
   // reset DMP, FIFO, SIG
   //SPI_write_register( MPU6500_RA_USER_CTRL, 0x10 | 0x8 | 0x4 | 0x1 );
-  SPI_write_register( MPU6500_RA_USER_CTRL, 0x03);
+  SPI_write_register(MPU6500_RA_USER_CTRL, 0x01);//0x03
   delay(100);
   byte id;
   id = SPI_read_register( MPU6500_RA_WHO_AM_I );
@@ -489,17 +505,17 @@ void mpu6500_initialize()
     // set low pass filter
     SPI_write_register(MPU6500_RA_CONFIG, MPU6500_DLPF_BW_42);//5, 42, 98, 188
     delay(1);
-    SPI_write_register(MPU6500_RA_GYRO_CONFIG, MPU6500_GYRO_FS_2000);  // Gyro scale 2000º/s
+    SPI_write_register(MPU6500_RA_GYRO_CONFIG, 0x18);//0x18 Gyro scale 2000º/s
     delay(1);
-    SPI_write_register(MPU6500_RA_ACCEL_CONFIG, 0x10);//Accel scale 8g (4096 LSB/g)
+    SPI_write_register(MPU6500_RA_ACCEL_CONFIG, 0x10);//0x10 Accel scale 8g (4096 LSB/g)
     delay(1);
     // configure interrupt to fire when new data arrives
-    //SPI_write_register(MPU6500_RA_INT_ENABLE, BIT_RAW_RDY_EN);
+    //SPI_write_register(MPU6500_RA_INT_ENABLE, 0x01);//
     delay(1);
     // clear interrupt on any read
-    //SPI_write_register(MPU6500_RA_INT_PIN_CFG, BIT_INT_RD_CLEAR);
+    //SPI_write_register(MPU6500_RA_INT_PIN_CFG, 0x10);
     delay(1);
-    //attachInterrupt(6,data_interrupt,RISING);
+    //attachInterrupt(25,data_interrupt,RISING);//pin 25
     
   // enable temperature, gyro, and accelerometer output
   //SPI_write_register( MPU6500_RA_FIFO_EN,MPU6500_FIFO_EN_ACC | MPU6500_FIFO_EN_TEMP | MPU6500_FIFO_EN_GYRO );
@@ -509,52 +525,6 @@ void mpu6500_initialize()
   // speed up to take data
   //SPI.setClockDivider( nCS, 8 ); // 10.5MHz; 7 sometimes works
   Serial.println( "mpu6500_initialize_SPI" );
-}
-
-void MPU6500Read( void )
-{
-      digitalWrite( NCS_PIN, LOW );
-      SPI.transfer(MPU6500_RA_ACCEL_XOUT_H  | 0x80);//0x40 // SPI read,
-      accelRaw[XAXIS] = spi_transfer_16() * -1;
-      accelRaw[YAXIS] = spi_transfer_16();
-      accelRaw[ZAXIS] = spi_transfer_16();
-      Tempgyro = spi_transfer_16();
-      gyroRaw[XAXIS] = spi_transfer_16();
-      gyroRaw[YAXIS] = spi_transfer_16() * -1;
-      gyroRaw[ZAXIS] = spi_transfer_16() * -1;
-      digitalWrite( NCS_PIN, HIGH );
-}
-void mpu6500_Gyro_Values()
-{
-     int i = 0;
-     byte result[6];
-  while(Wire.available())    
-  { 
-    result[i] = Wire.read(); 
-    i++;
-  }
-  Wire.endTransmission();
-    gyroRaw[XAXIS] = ((result[0] << 8) | result[1]);//-12     -3
-    gyroRaw[YAXIS] = ((result[2] << 8) | result[3])*-1;//37      15
-    gyroRaw[ZAXIS] = ((result[4] << 8) | result[5])*-1;//11    5
-}	
-void mpu6500_Accel_Values()
-{
-    int i = 0;
-    byte result[6];
-  while(Wire.available())    
-  { 
-    result[i] = Wire.read(); 
-    i++;
-  }
-  Wire.endTransmission();
-    accelRaw[XAXIS] = ((result[0] << 8) | result[1])*-1;//+ 105 + 100  max=4054.46, min=-4149.48
-    accelRaw[YAXIS] = ((result[2] << 8) | result[3]);// - 45 - 35      max=4129.57, min=-4070.64
-    accelRaw[ZAXIS] = ((result[4] << 8) | result[5]);// + 150 + 170    max=4014.73 , min=-4165.13
-     // adjust for  acc axis offsets/sensitivity differences by scaling to +/-1 g range
-  AccXm = ((float)(accelRaw[XAXIS] - A_X_MIN) / (A_X_MAX - A_X_MIN))*2.0 - 1.0;
-  AccYm = ((float)(accelRaw[YAXIS] - A_Y_MIN) / (A_Y_MAX - A_Y_MIN))*2.0 - 1.0;
-  AccZm = ((float)(accelRaw[ZAXIS] - A_Z_MIN) / (A_Z_MAX - A_Z_MIN))*2.0 - 1.0;
 }
 void MagHMC5883Int()
 {
@@ -632,8 +602,11 @@ void Mag_Calibrate()//Calibration_sensor Magnetometer
       Serial.print(M_Z_MAX);
       Serial.print("\n");
 }
-void mpu6500_readGyroSum() {
-    mpu6500_Gyro_Values();
+void mpu6500_readSum() {
+    MPU6500Read();
+    accelSum[XAXIS] += AccXm;
+    accelSum[YAXIS] += AccYm;
+    accelSum[ZAXIS] += AccZm; 
     gyroSum[XAXIS] += gyroRaw[XAXIS];
     gyroSum[YAXIS] += gyroRaw[YAXIS];
     gyroSum[ZAXIS] += gyroRaw[ZAXIS];
@@ -644,34 +617,26 @@ void mpu6500_Get_gyro()
     if(gyroSamples == 0){
       gyroSamples = 1;
     }
-    GyroX = (gyroSum[XAXIS] / gyroSamples)*gyroScaleFactor - gyro_offsetX;// Calculate average
-    GyroY = (gyroSum[YAXIS] / gyroSamples)*gyroScaleFactor - gyro_offsetY;
-    GyroZ = (gyroSum[ZAXIS] / gyroSamples)*gyroScaleFactor - gyro_offsetZ;            
+    GyroX = (gyroSum[XAXIS] / gyroSamples) - gyro_offsetX;// Calculate average
+    GyroY = (gyroSum[YAXIS] / gyroSamples) - gyro_offsetY;
+    GyroZ = (gyroSum[ZAXIS] / gyroSamples) - gyro_offsetZ;            
     gyroSum[XAXIS] = 0.0;// Reset SUM variables
     gyroSum[YAXIS] = 0.0;
     gyroSum[ZAXIS] = 0.0;
     gyroSamples2 = gyroSamples;
     gyroSamples = 0;            
 }
-void mpu6500_readAccelSum() {
-    mpu6500_Accel_Values();
-    accelSum[XAXIS] += AccXm;
-    accelSum[YAXIS] += AccYm;
-    accelSum[ZAXIS] += AccZm;  
-    accSamples++;
-}
 void mpu6500_Get_accel()
 {
-    if(accSamples == 0){
-      accSamples = 1;
+    if(gyroSamples == 0){
+      gyroSamples = 1;
     }
-    AccX = (accelSum[XAXIS] / accSamples)*accelScaleFactor - acc_offsetX;// Calculate average
-    AccY = (accelSum[YAXIS] / accSamples)*accelScaleFactor - acc_offsetY;
-    AccZ = (accelSum[ZAXIS] / accSamples)*accelScaleFactor;// Apply correct scaling (at this point accel reprensents +- 1g = 9.81 m/s^2)
+    AccX = (accelSum[XAXIS] / gyroSamples) - acc_offsetX;// Calculate average
+    AccY = (accelSum[YAXIS] / gyroSamples) - acc_offsetY;
+    AccZ = (accelSum[ZAXIS] / gyroSamples);// Apply correct scaling (at this point accel reprensents +- 1g = 9.81 m/s^2)
     accelSum[XAXIS] = 0.0;    // Reset SUM variables
     accelSum[YAXIS] = 0.0;
-    accelSum[ZAXIS] = 0.0; 
-    accSamples = 0;   
+    accelSum[ZAXIS] = 0.0;  
 }
 void sensor_Calibrate()
 {
@@ -686,8 +651,7 @@ void sensor_Calibrate()
     for (uint8_t i=0; i<45; i++) //Collect 60, 100 samples
     {
         Serial.print("- ");
-        mpu6500_readGyroSum();
-        mpu6500_readAccelSum();
+        mpu6500_readSum();
         Mag5883Read();
         digitalWrite(13, HIGH);
         digitalWrite(Pin_LED_R, HIGH);
@@ -697,29 +661,28 @@ void sensor_Calibrate()
         delay(20);
     }
     Serial.println("- ");
-    gyro_offsetX = (gyroSum[XAXIS]/gyroSamples)*gyroScaleFactor;
-    gyro_offsetY = (gyroSum[YAXIS]/gyroSamples)*gyroScaleFactor;
-    gyro_offsetZ = (gyroSum[ZAXIS]/gyroSamples)*gyroScaleFactor;
-    acc_offsetX = (accelSum[XAXIS]/gyroSamples)*accelScaleFactor;
-    acc_offsetY = (accelSum[YAXIS]/gyroSamples)*accelScaleFactor;
-    acc_offsetZ = (accelSum[ZAXIS]/gyroSamples)*accelScaleFactor;
+    gyro_offsetX = (gyroSum[XAXIS]/gyroSamples);
+    gyro_offsetY = (gyroSum[YAXIS]/gyroSamples);
+    gyro_offsetZ = (gyroSum[ZAXIS]/gyroSamples);
+    acc_offsetX = (accelSum[XAXIS]/gyroSamples);
+    acc_offsetY = (accelSum[YAXIS]/gyroSamples);
+    acc_offsetZ = (accelSum[ZAXIS]/gyroSamples);
     acc_offsetZ2 = sqrt(acc_offsetX*acc_offsetX + acc_offsetY*acc_offsetY + acc_offsetZ*acc_offsetZ);
     AccZf = acc_offsetZ;//15.4
     MagXf = MagX1;
     MagYf = MagY1;
     MagZf = MagZ1;
     gyroSamples = 0;
-    accSamples = 0;
     Serial.print("GYRO_Calibrate");Serial.print("\t");
     Serial.print(gyro_offsetX);Serial.print("\t");//-0.13
     Serial.print(gyro_offsetY);Serial.print("\t");//-0.10
     Serial.print(gyro_offsetZ);Serial.println("\t");//0.03 
     Serial.print("ACC_Calibrate");Serial.print("\t");
-    Serial.print(acc_offsetX);Serial.print("\t");
-    Serial.print(acc_offsetY);Serial.print("\t");
-    Serial.print(acc_offsetZ);Serial.print("\t");
+    Serial.print(acc_offsetX*9.81);Serial.print("\t");
+    Serial.print(acc_offsetY*9.81);Serial.print("\t");
+    Serial.print(acc_offsetZ*9.81);Serial.print("\t");
     Serial.print(acc_offsetZ2);Serial.println("\t");  
-acc_offsetX = 0.04;//-0.18 0.11 -0.36  Trim PITCH CONTROL   -10.07	-10.55	-9.82
-acc_offsetY = 0.06;//0.16 -0.14 0.18 Trim ROLL CONTROL     10.39	9.74	11
+acc_offsetX = 0.03669;//-0.18 0.11 -0.36  Trim PITCH CONTROL   -10.07	-10.55	-9.82
+acc_offsetY = 0.00305;//0.16 -0.14 0.18 Trim ROLL CONTROL     10.39	9.74	11
 //acc_offsetZ = 0.0;//0.245 0.235 10.2
 }
