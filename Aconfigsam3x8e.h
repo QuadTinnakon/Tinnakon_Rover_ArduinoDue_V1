@@ -1,6 +1,6 @@
 /*
-project_Quad 32 bit Arduino Due
-1. stabilized quadrotor 
+project_Tinnakon_Rover 32 bit Arduino Due
+Tinnakon_Rover
 by: tinnakon kheowree 
 0860540582
 tinnakon_za@hotmail.com
@@ -105,21 +105,21 @@ float waypoint4_LAT = 13.8670005791;
 float waypoint4_LON = 100.483291625;
 ////////////////////////////////////////////////////////////////////
 //Accelerometer calibration constants; use the Calibrate example from print(accelRaw[XAXIS]);
-int A_X_MIN = -4150;    //
-int A_X_MAX = 4001;     //
-int A_Y_MIN = -4090;    //
-int A_Y_MAX = 4100;     //
+int A_X_MIN = -4220;    //
+int A_X_MAX = 3935;     //
+int A_Y_MIN = -4040;    //
+int A_Y_MAX = 4162;     //
 int A_Z_MIN = -4170;    //
-int A_Z_MAX = 4052;     //4007
+int A_Z_MAX = 4211;     //4007
 ////////////////////////////////////////////////////////////////////
 //magnetometer calibration constants; use the Calibrate example from print(MagXf);
 // the Pololu library to find the right values for your board
-int M_X_MIN = -170;    //-490 -654  -693   -688
-int M_X_MAX = 610;     //310 185   209    170
-int M_Y_MIN = -380;    //-369 -319  -311   -310
-int M_Y_MAX = 403;     //397 513   563    546
-int M_Z_MIN = -430;    //-392 -363  -374   -377
-int M_Z_MAX = 290;     //346 386   429    502
+float M_X_MIN = -370.6;    //-490 -654  -693   -688
+float M_X_MAX = 387.2;     //310 185   209    170
+float M_Y_MIN = -329.4;    //-369 -319  -311   -310
+float M_Y_MAX = 407.8;     //397 513   563    546
+float M_Z_MIN = -460.6;    //-392 -363  -374   -377
+float M_Z_MAX = 175.6;     //346 386   429    502
 ////////////////////////////////////////////////////////////////////
 //Observer hz
 float Altitude_Hold = 0.0;
